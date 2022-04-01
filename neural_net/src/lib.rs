@@ -125,7 +125,7 @@ impl<'a> NeuralNet<'a> {
             let layer_input = &inputs[i];
             let layer_activation = &activations[i];
 
-            let mut g_w = layer_activation * &current.transpose();
+            let g_w = layer_activation * &current.transpose();
             // let clipping_threshold = layer_weights.size() as f32 * 1000.0;
             // let g_w_mag = g_w.fold(0.0, |s, x| s + x * x).sqrt();
             // if g_w_mag > clipping_threshold {
@@ -198,7 +198,7 @@ impl<'a> NeuralNet<'a> {
             //     data.len() / batch_size
             // );
             print!("-");
-            std::io::stdout().flush();
+            std::io::stdout().flush().unwrap();
             let right = min(left + batch_size, data.len());
 
             let batch_data = &data[left..right];
@@ -224,15 +224,33 @@ impl<'a> NeuralNet<'a> {
         }
     }
 
-    pub fn momentum(&mut self, batch_size: u32, data: Vec<&Matrix2D>, labels: Vec<&Matrix2D>) {
+    pub fn momentum(
+        &mut self,
+        batch_size: usize,
+        learning_rate: f32,
+        data: &[Matrix2D],
+        labels: &[Matrix2D],
+    ) {
         todo!()
     }
 
-    pub fn rms_prop(&mut self, batch_size: u32, data: Vec<&Matrix2D>, labels: Vec<&Matrix2D>) {
+    pub fn rms_prop(
+        &mut self,
+        batch_size: usize,
+        learning_rate: f32,
+        data: &[Matrix2D],
+        labels: &[Matrix2D],
+    ) {
         todo!()
     }
 
-    pub fn adam(&mut self, batch_size: u32, data: Vec<&Matrix2D>, labels: Vec<&Matrix2D>) {
+    pub fn adam(
+        &mut self,
+        batch_size: usize,
+        learning_rate: f32,
+        data: &[Matrix2D],
+        labels: &[Matrix2D],
+    ) {
         todo!()
     }
 }

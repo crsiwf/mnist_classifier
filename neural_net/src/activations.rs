@@ -107,19 +107,19 @@ fn sigmoid_derivative(x: &Matrix2D) -> Matrix2D {
     x.map(|x_i| sigmoid_scalar(x_i) * (1.0 - sigmoid_scalar(x_i)))
 }
 
-fn ReLU(x: &Matrix2D) -> Matrix2D {
+fn relu(x: &Matrix2D) -> Matrix2D {
     x.filter(|x_i| x_i > 0.0)
 }
 
-fn ReLU_derivative(x: &Matrix2D) -> Matrix2D {
+fn relu_derivative(x: &Matrix2D) -> Matrix2D {
     x.map(|x_i| (x_i > 0.0) as u16 as f32)
 }
 
-fn leaky_ReLU(x: &Matrix2D) -> Matrix2D {
+fn leaky_relu(x: &Matrix2D) -> Matrix2D {
     x.map(|x_i| if x_i > 0.0 { x_i } else { 0.1 * x_i })
 }
 
-fn leaky_ReLU_derivative(x: &Matrix2D) -> Matrix2D {
+fn leaky_relu_derivative(x: &Matrix2D) -> Matrix2D {
     x.map(|x_i| if x_i > 0.0 { 1.0 } else { 0.1 })
 }
 
@@ -175,12 +175,12 @@ pub const SIGMOID: Activation = Activation {
     derivative: &sigmoid_derivative,
 };
 pub const RELU: Activation = Activation {
-    activation: &ReLU,
-    derivative: &ReLU_derivative,
+    activation: &relu,
+    derivative: &relu_derivative,
 };
 pub const LEAKY_RELU: Activation = Activation {
-    activation: &leaky_ReLU,
-    derivative: &leaky_ReLU_derivative,
+    activation: &leaky_relu,
+    derivative: &leaky_relu_derivative,
 };
 pub const SOFTMAX: Activation = Activation {
     activation: &softmax,

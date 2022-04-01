@@ -23,7 +23,7 @@ fn load_images(file_name: &str) -> Vec<Matrix2D> {
     let idx = load_idx::load_idx::<u8>(file_name).unwrap();
 
     assert_eq!(3, idx.dimensions.len());
-    let n_images = idx.dimensions[0];
+    // let n_images = idx.dimensions[0];
     let image_height = idx.dimensions[1];
     let image_width = idx.dimensions[2];
     let image_size = image_height * image_width;
