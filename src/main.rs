@@ -65,17 +65,17 @@ fn main() {
     let output_size = 10;
 
     let mut model = NeuralNet::new(
-        vec![input_size, 150, output_size],
+        vec![input_size, 300, 100, output_size],
         activations::Initialization::Kaiming,
         activations::LEAKY_RELU,
         activations::SOFTMAX_CROSSENTROPY,
     );
 
     let batch_size = 40;
-    let learning_rate = 0.001;
+    let learning_rate = 0.01;
 
     let (cost, correct) = model.evaluate(&test_images, &test_labels);
-    println!("Cost: {}\nAccuracy: {}%", cost, 100.0 * correct);
+    println!("\nCost: {}\nAccuracy: {}%", cost, 100.0 * correct);
 
     for (ti, tl) in test_images.iter().zip(&test_labels).take(20) {
         let prediction = model.predict(&ti);
@@ -94,7 +94,7 @@ fn main() {
     );
 
     let (cost, correct) = model.evaluate(&test_images, &test_labels);
-    println!("Cost: {}\nAccuracy: {}%", cost, 100.0 * correct);
+    println!("\nCost: {}\nAccuracy: {}%", cost, 100.0 * correct);
 
     for (ti, tl) in test_images.iter().zip(test_labels).take(20) {
         let prediction = model.predict(&ti);

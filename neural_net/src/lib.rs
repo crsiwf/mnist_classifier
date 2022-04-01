@@ -1,6 +1,6 @@
-use activations::{Activation, Loss, Initialization};
+use activations::{Activation, Initialization, Loss};
 use matrix2d::Matrix2D;
-use std::cmp::min;
+use std::{cmp::min, io::Write};
 
 pub mod activations;
 pub mod matrix2d;
@@ -12,12 +12,17 @@ pub struct NeuralNet<'a> {
 }
 
 impl<'a> NeuralNet<'a> {
-    pub fn new(layers: Vec<i32>, init: Initialization, activation: Activation<'a>, cost: Loss<'a>) -> Self {
+    pub fn new(
+        layers: Vec<i32>,
+        init: Initialization,
+        activation: Activation<'a>,
+        cost: Loss<'a>,
+    ) -> Self {
         let mut weights = Vec::new();
 
         for i in 0..layers.len() - 1 {
             let shape = (layers[i + 1] as usize, layers[i] as usize);
-            let w = init.initialize(shape);
+            let w = init.initialize(shape, true);
             weights.push(w);
         }
 
@@ -30,8 +35,11 @@ impl<'a> NeuralNet<'a> {
 
     fn forward_pass(&self, input: &Matrix2D) -> (Vec<Matrix2D>, Vec<Matrix2D>) {
         let mut inputs = vec![input.clone()];
-        let mut activations = vec![self.activation.activation(input)];
-        let mut current = input.clone();
+        let mut activations = vec![Matrix2D::vstack(
+            &self.activation.activation(input),
+            &Matrix2D::ones((1, 1)), // add bias to activation
+        )];
+        let mut current = activations[0].clone();
 
         for (i, w) in self.weights.iter().enumerate() {
             let layer_input = w * &current;
@@ -49,7 +57,10 @@ impl<'a> NeuralNet<'a> {
                     } => activation(&layer_input),
                 }
             } else {
-                self.activation.activation(&layer_input)
+                Matrix2D::vstack(
+                    &self.activation.activation(&layer_input),
+                    &Matrix2D::ones((1, 1)),
+                ) //add bias to activation
             };
 
             if layer_activation.get_vec().iter().any(|x| !x.is_finite()) {
@@ -69,6 +80,13 @@ impl<'a> NeuralNet<'a> {
 
     fn backward_pass(&self, input: &Matrix2D, label: &Matrix2D) -> Vec<Matrix2D> {
         fn rowwise_mul_mut(matrix: &mut Matrix2D, column_vector: &Matrix2D) {
+            assert_eq!(
+                matrix.rows(),
+                column_vector.rows(),
+                "Cannot rowwise multiply matrice with shapes {:?} and {:?}",
+                matrix.shape(),
+                column_vector.shape()
+            );
             for r in 0..matrix.rows() {
                 let factor = column_vector[(r, 0)];
                 unsafe {
@@ -106,17 +124,18 @@ impl<'a> NeuralNet<'a> {
             let layer_weights = &self.weights[i];
             let layer_input = &inputs[i];
             let layer_activation = &activations[i];
-            let clipping_threshold = layer_weights.size() as f32 * 1000.0;
 
-            let mut g_w = (layer_activation * &current).transpose();
+            let mut g_w = layer_activation * &current.transpose();
+            // let clipping_threshold = layer_weights.size() as f32 * 1000.0;
             // let g_w_mag = g_w.fold(0.0, |s, x| s + x * x).sqrt();
             // if g_w_mag > clipping_threshold {
             //     g_w *= clipping_threshold / g_w_mag;
             // }
-            gradient.push(g_w);
-            let mut tmp = layer_weights.clone();
+            gradient.push(g_w.transpose());
+            let mut tmp = layer_weights.transpose();
+            tmp = tmp.slice_top(tmp.rows() - 1); // remove bias weights
             rowwise_mul_mut(&mut tmp, &self.activation.derivative(layer_input));
-            current *= tmp;
+            current = tmp * &current;
         }
         gradient.reverse();
         gradient
@@ -173,7 +192,13 @@ impl<'a> NeuralNet<'a> {
         test_labels: &[Matrix2D],
     ) {
         for left in (0..data.len()).step_by(batch_size) {
-            println!("Batch {}/{}", left / batch_size + 1, data.len() / batch_size);
+            // println!(
+            //     "Batch {}/{}",
+            //     left / batch_size + 1,
+            //     data.len() / batch_size
+            // );
+            print!("-");
+            std::io::stdout().flush();
             let right = min(left + batch_size, data.len());
 
             let batch_data = &data[left..right];
@@ -187,7 +212,7 @@ impl<'a> NeuralNet<'a> {
 
             if left / batch_size % 100 == 99 {
                 let (cost, correct) = self.evaluate(&test_data, &test_labels);
-                println!("Cost: {}\nAccuracy: {}%", cost, 100.0 * correct);
+                println!("\nCost: {:.4},    Accuracy: {:.2}%", cost, 100.0 * correct);
                 // for (ti, tl) in test_data.iter().zip(test_labels).take(20) {
                 //     let prediction = self.predict(&ti);
                 //     let p_argmax = prediction.argmax();
