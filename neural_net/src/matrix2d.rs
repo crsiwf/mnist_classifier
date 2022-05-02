@@ -13,7 +13,6 @@ pub struct Matrix2D {
 }
 
 impl Matrix2D {
-    // constructors
 
     pub fn from_vec(shape: Shape, values: Vec<f32>) -> Self {
         Self { shape, values }
@@ -102,8 +101,6 @@ impl Matrix2D {
         }
     }
 
-    // misc
-
     pub fn get_vec(&self) -> Vec<f32> {
         self.values.clone()
     }
@@ -131,8 +128,6 @@ impl Matrix2D {
     pub fn columns(&self) -> usize {
         self.shape.1
     }
-
-    // operations
 
     pub fn transpose(&self) -> Self {
         let mut res = Self::zeros((self.columns(), self.rows()));
@@ -224,11 +219,11 @@ impl Matrix2D {
     }
 
     pub fn min(&self) -> f32 {
-        self.fold(f32::NEG_INFINITY, f32::min)
+        self.fold(f32::INFINITY, f32::min)
     }
 
     pub fn argmin(&self) -> Shape {
-        let mut x = f32::NEG_INFINITY;
+        let mut x = f32::INFINITY;
         let mut xi = 0;
         for (i, &v) in self.values.iter().enumerate() {
             if v < x {
@@ -319,82 +314,62 @@ impl Matrix2D {
     }
 
 
-    pub fn slice_front(&self, n_columns: usize) -> Self {
+    pub fn hslice(&self, slice_at: usize) -> (Self, Self) {
         assert!(
-            n_columns < self.columns(),
-            "Cannot slice {} columns from Matrix with shape {:?}",
-            n_columns,
-            self.shape
+            slice_at < self.columns() + 1,
+            "Cannot slice Matrix with shape {:?} at column {}",
+            self.shape,
+            slice_at,
         );
 
-        let mut column_vec = vec![0.0; n_columns * self.rows()];
-        for row in 0..self.rows() {
-            for column in 0..n_columns {
-                column_vec[row * n_columns + column] = self[(row, column)];
+        let front_size = slice_at * self.rows();
+        let mut vec_front = vec![0.0; front_size];
+        let mut vec_back = vec![0.0; self.size() - front_size];
+
+        println!("{} {}", vec_front.len(), vec_back.len());
+
+        for r in 0..self.rows() {
+            for c in 0..slice_at {
+                vec_front[r * slice_at + c] = self[(r, c)];
+            }
+            for c in slice_at..self.columns() {
+                vec_back[r * (self.columns() - slice_at) + c - slice_at] = self[(r, c)];
             }
         }
 
-        Self {
-            shape: (self.rows(), n_columns),
-            values: column_vec,
-        }
+        let front = Self {
+            shape: (self.rows(), slice_at),
+            values: vec_front,
+        };
+        let back = Self {
+            shape: (self.rows(), self.columns() - slice_at),
+            values: vec_back,
+        };
+
+        (front, back)
     }
 
-    pub fn slice_back(&self, n_columns: usize) -> Self {
+    pub fn vslice(&self, slice_at: usize) -> (Self, Self) {
         assert!(
-            n_columns < self.columns(),
-            "Cannot slice {} columns from Matrix with shape {:?}",
-            n_columns,
-            self.shape
+            slice_at < self.rows() + 1,
+            "Cannot slice Matrix with shape {:?} at row {}",
+            self.shape,
+            slice_at,
         );
 
-        let column_start = self.columns() - n_columns;
+        let slice_index = slice_at * self.columns();
 
-        let mut column_vec = vec![0.0; n_columns * self.rows()];
-        for row in 0..self.rows() {
-            for column in 0..n_columns {
-                column_vec[row * n_columns + column] = self[(row, column_start + column)];
-            }
-        }
+        let top = Self {
+            shape: (slice_at, self.columns()),
+            values: self.values[..slice_index].to_vec(),
+        };
 
-        Self {
-            shape: (self.rows(), n_columns),
-            values: column_vec,
-        }
-    }
+        let bottom = Self {
+            shape: (self.rows() - slice_at, self.columns()),
+            values: self.values[slice_index..].to_vec(),
+        };
 
-    pub fn slice_top(&self, n_rows: usize) -> Self {
-        assert!(
-            n_rows < self.rows(),
-            "Cannot slice {} rows from Matrix with shape {:?}",
-            n_rows,
-            self.shape
-        );
-
-        let index_start = 0;
-        let index_end = n_rows * self.columns();
-
-        Self {
-            shape: (n_rows, self.columns()),
-            values: self.values[index_start..index_end].to_vec(),
-        }
-    }
-
-    pub fn slice_bottom(&self, n_rows: usize) -> Self {
-        assert!(
-            n_rows < self.rows(),
-            "Cannot slice {} rows from Matrix with shape {:?}",
-            n_rows,
-            self.shape
-        );
-
-        let index_start = (self.rows() - n_rows) * self.columns();
-        let index_end = self.size();
-
-        Self {
-            shape: (n_rows, self.columns()),
-            values: self.values[index_start..index_end].to_vec(),
-        }
+        (top, bottom)
     }
 }
 
@@ -406,6 +381,17 @@ impl Clone for Matrix2D {
         }
     }
 }
+
+impl Debug for Matrix2D {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\n[")?;
+        for r in 0..self.rows() {
+            write!(f, "\n    {:?}", self.get_row(r).values)?;
+        }
+        write!(f, "\n]")
+    }
+}
+
 
 // Operator overloading
 
@@ -657,374 +643,5 @@ impl DivAssign<f32> for Matrix2D {
         for i in 0..self.size() {
             self.values[i] /= rhs;
         }
-    }
-}
-
-impl Debug for Matrix2D {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\n[")?;
-        for r in 0..self.rows() {
-            write!(f, "\n    {:?}", self.get_row(r).values)?;
-        }
-        write!(f, "\n]")
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_size() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        assert_eq!(6, m.size());
-    }
-
-    #[test]
-    fn test_transpose() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let m_t = m.transpose();
-
-        let v_t = vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0];
-
-        assert_eq!(m_t.shape, (3, 2));
-
-        for i in 0..m.size() {
-            assert_eq!(m_t.values[i], v_t[i]);
-        }
-    }
-
-    #[test]
-    fn test_reshape() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let m2 = m.reshape((1, 6));
-
-        assert_eq!(m[(1, 1)], m2[(0, 4)]);
-    }
-
-    #[test]
-    fn test_reshape_mut() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let mut m2 = m.clone();
-        m2.reshape_mut((1, 6));
-
-        assert_eq!(m[(1, 1)], m2[(0, 4)]);
-    }
-
-    #[test]
-    fn test_map() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let m2 = m.map(|x| x * x);
-
-        assert_eq!(m2[(1, 1)], 25.0);
-    }
-
-    #[test]
-    fn test_map_mut() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let mut m = Matrix2D::from_vec((2, 3), v);
-
-        m.map_mut(|x| x * x);
-
-        assert_eq!(m[(1, 1)], 25.0);
-    }
-
-    #[test]
-    fn test_filter() {}
-
-    #[test]
-    fn test_filter_mut() {}
-
-    #[test]
-    fn test_fold() {}
-
-    #[test]
-    fn test_vstack() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let v2 = vec![7.0, 8.0, 9.0];
-        let m2 = Matrix2D::from_vec((1, 3), v2);
-
-        let m3 = Matrix2D::vstack(&m, &m2);
-
-        assert_eq!(m3.shape, (3, 3));
-
-        assert_eq!(m3[(2, 1)], 8.0);
-    }
-
-    #[test]
-    fn test_hstack() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let v2 = vec![7.0, 8.0, 9.0, 10.0];
-        let m2 = Matrix2D::from_vec((2, 2), v2);
-
-        let m3 = Matrix2D::hstack(&m, &m2);
-
-        assert_eq!(m3.shape, (2, 5));
-
-        assert_eq!(m3[(0, 4)], 8.0);
-        assert_eq!(m3[(1, 3)], 9.0);
-    }
-
-    #[test]
-    fn test_get_row() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let r = m.get_row(1);
-
-        assert_eq!(r.shape, (1, 3));
-
-        assert_eq!(r[(0, 1)], 5.0);
-        assert_eq!(r[(0, 2)], 6.0);
-    }
-
-    #[test]
-    fn test_get_column() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let r = m.get_column(1);
-
-        assert_eq!(r.shape, (2, 1));
-
-        assert_eq!(r[(0, 0)], 2.0);
-        assert_eq!(r[(1, 0)], 5.0);
-    }
-
-    #[test]
-    fn test_slice_top() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        let m = Matrix2D::from_vec((4, 2), v);
-
-        let m2 = m.slice_top(2);
-
-        assert_eq!(m2.shape, (2, 2));
-
-        assert_eq!(m2[(0, 0)], 1.0);
-        assert_eq!(m2[(0, 1)], 2.0);
-        assert_eq!(m2[(1, 0)], 3.0);
-        assert_eq!(m2[(1, 1)], 4.0);
-    }
-
-    #[test]
-    fn test_slice_bottom() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        let m = Matrix2D::from_vec((4, 2), v);
-
-        let m2 = m.slice_bottom(2);
-
-        assert_eq!(m2.shape, (2, 2));
-
-        assert_eq!(m2[(0, 0)], 5.0);
-        assert_eq!(m2[(0, 1)], 6.0);
-        assert_eq!(m2[(1, 0)], 7.0);
-        assert_eq!(m2[(1, 1)], 8.0);
-    }
-
-    #[test]
-    fn test_slice_front() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let m2 = m.slice_front(2);
-
-        assert_eq!(m2.shape, (2, 2));
-
-        assert_eq!(m2[(0, 0)], 1.0);
-        assert_eq!(m2[(0, 1)], 2.0);
-        assert_eq!(m2[(1, 0)], 4.0);
-        assert_eq!(m2[(1, 1)], 5.0);
-    }
-
-    #[test]
-    fn test_slice_back() {
-        let v = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m = Matrix2D::from_vec((2, 3), v);
-
-        let m2 = m.slice_back(2);
-
-        assert_eq!(m2.shape, (2, 2));
-
-        assert_eq!(m2[(0, 0)], 2.0);
-        assert_eq!(m2[(0, 1)], 3.0);
-        assert_eq!(m2[(1, 0)], 5.0);
-        assert_eq!(m2[(1, 1)], 6.0);
-    }
-
-    #[test]
-    fn test_add() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m1 = Matrix2D::from_vec((2, 3), v1);
-
-        let v2 = vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
-        let m2 = Matrix2D::from_vec((2, 3), v2);
-
-        let m3 = &m1 + &m2;
-
-        assert_eq!(m3.shape, (2, 3));
-
-        assert_eq!(m3[(0, 0)], 1.0 + 7.0);
-        assert_eq!(m3[(0, 2)], 3.0 + 9.0);
-        assert_eq!(m3[(1, 1)], 5.0 + 11.0);
-    }
-
-    #[test]
-    fn test_add_assign() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let mut m1 = Matrix2D::from_vec((2, 3), v1);
-
-        let v2 = vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
-        let m2 = Matrix2D::from_vec((2, 3), v2);
-
-        m1 += &m2;
-
-        assert_eq!(m1.shape, (2, 3));
-
-        assert_eq!(m1[(0, 0)], 1.0 + 7.0);
-        assert_eq!(m1[(0, 2)], 3.0 + 9.0);
-        assert_eq!(m1[(1, 1)], 5.0 + 11.0);
-    }
-
-    #[test]
-    fn test_sub() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m1 = Matrix2D::from_vec((2, 3), v1);
-
-        let v2 = vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
-        let m2 = Matrix2D::from_vec((2, 3), v2);
-
-        let m3 = &m2 - &m1;
-
-        assert_eq!(m3.shape, (2, 3));
-
-        assert_eq!(m3[(0, 0)], 7.0 - 1.0);
-        assert_eq!(m3[(0, 2)], 9.0 - 3.0);
-        assert_eq!(m3[(1, 1)], 11.0 - 5.0);
-    }
-
-    #[test]
-    fn test_sub_assign() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m1 = Matrix2D::from_vec((2, 3), v1);
-
-        let v2 = vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
-        let mut m2 = Matrix2D::from_vec((2, 3), v2);
-
-        m2 -= &m1;
-
-        assert_eq!(m1.shape, (2, 3));
-
-        assert_eq!(m2[(0, 0)], 7.0 - 1.0);
-        assert_eq!(m2[(0, 2)], 9.0 - 3.0);
-        assert_eq!(m2[(1, 1)], 11.0 - 5.0);
-    }
-
-    #[test]
-    fn test_mul_matrix() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let m1 = Matrix2D::from_vec((2, 3), v1);
-
-        let m2 = m1.transpose();
-
-        let m3 = &m1 * &m2;
-
-        assert_eq!(m3.shape, (2, 2));
-
-        assert_eq!(m3[(0, 0)], 14.0);
-        assert_eq!(m3[(0, 1)], 32.0);
-        assert_eq!(m3[(1, 0)], 32.0);
-        assert_eq!(m3[(1, 1)], 77.0);
-    }
-
-    #[test]
-    fn test_mul_assign_matrix() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let mut m1 = Matrix2D::from_vec((2, 3), v1);
-
-        let m2 = m1.transpose();
-
-        m1 *= &m2;
-
-        assert_eq!(m1.shape, (2, 2));
-
-        assert_eq!(m1[(0, 0)], 14.0);
-        assert_eq!(m1[(0, 1)], 32.0);
-        assert_eq!(m1[(1, 0)], 32.0);
-        assert_eq!(m1[(1, 1)], 77.0);
-    }
-
-    #[test]
-    fn test_mul_f32() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0];
-        let m1 = Matrix2D::from_vec((2, 2), v1);
-
-        let m2 = &m1 * 2.0;
-        let m3 = 2.0 * &m2;
-
-        assert_eq!(m3.shape, (2, 2));
-
-        assert_eq!(m3[(0, 0)], 4.0);
-        assert_eq!(m3[(0, 1)], 8.0);
-        assert_eq!(m3[(1, 0)], 12.0);
-        assert_eq!(m3[(1, 1)], 16.0);
-    }
-
-    #[test]
-    fn test_mul_assign_f32() {
-        let v1 = vec![1.0, 2.0, 3.0, 4.0];
-        let mut m1 = Matrix2D::from_vec((2, 2), v1);
-
-        m1 *= 2.0;
-
-        assert_eq!(m1.shape, (2, 2));
-
-        assert_eq!(m1[(0, 0)], 2.0);
-        assert_eq!(m1[(0, 1)], 4.0);
-        assert_eq!(m1[(1, 0)], 6.0);
-        assert_eq!(m1[(1, 1)], 8.0);
-    }
-
-    #[test]
-    fn test_div_f32() {
-        let v1 = vec![2.0, 4.0, 6.0, 8.0];
-        let m1 = Matrix2D::from_vec((2, 2), v1);
-
-        let m2 = &m1 / 2.0;
-
-        assert_eq!(m2.shape, (2, 2));
-
-        assert_eq!(m2[(0, 0)], 1.0);
-        assert_eq!(m2[(0, 1)], 2.0);
-        assert_eq!(m2[(1, 0)], 3.0);
-        assert_eq!(m2[(1, 1)], 4.0);
-    }
-
-    #[test]
-    fn test_div_assign_f32() {
-        let v1 = vec![2.0, 4.0, 6.0, 8.0];
-        let mut m1 = Matrix2D::from_vec((2, 2), v1);
-
-        m1 /= 2.0;
-
-        assert_eq!(m1.shape, (2, 2));
-
-        assert_eq!(m1[(0, 0)], 1.0);
-        assert_eq!(m1[(0, 1)], 2.0);
-        assert_eq!(m1[(1, 0)], 3.0);
-        assert_eq!(m1[(1, 1)], 4.0);
     }
 }

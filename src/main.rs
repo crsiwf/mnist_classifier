@@ -45,27 +45,16 @@ fn load_images(file_name: &str) -> Vec<Matrix2D> {
 }
 
 fn main() {
-    let training_images = load_images("D:/Daten/Rust/nn/mnist/train-images.idx3-ubyte");
-    let training_labels = load_labels("D:/Daten/Rust/nn/mnist/train-labels.idx1-ubyte");
-    let test_images = load_images("D:/Daten/Rust/nn/mnist/t10k-images.idx3-ubyte");
-    let test_labels = load_labels("D:/Daten/Rust/nn/mnist/t10k-labels.idx1-ubyte");
-
-    // let (training_images, training_labels): (Vec<Matrix2D>, Vec<Matrix2D>) = training_images
-    //     .into_iter()
-    //     .zip(training_labels.into_iter())
-    //     .filter(|(_, l)| l.argmax().0 == 3)
-    //     .unzip();
-    // let (test_images, test_labels): (Vec<Matrix2D>, Vec<Matrix2D>) = test_images
-    //     .into_iter()
-    //     .zip(test_labels.into_iter())
-    //     .filter(|(_, l)| l.argmax().0 == 3)
-    //     .unzip();
+    let training_images = load_images("mnist/train-images.idx3-ubyte");
+    let training_labels = load_labels("mnist/train-labels.idx1-ubyte");
+    let test_images = load_images("mnist/t10k-images.idx3-ubyte");
+    let test_labels = load_labels("mnist/t10k-labels.idx1-ubyte");
 
     let input_size = 28 * 28;
     let output_size = 10;
 
     let mut model = NeuralNet::new(
-        vec![input_size, 300, 100, output_size],
+        vec![input_size, 50, output_size],
         activations::Initialization::Kaiming,
         activations::LEAKY_RELU,
         activations::SOFTMAX_CROSSENTROPY,
@@ -74,32 +63,13 @@ fn main() {
     let batch_size = 40;
     let learning_rate = 0.01;
 
-    let (cost, correct) = model.evaluate(&test_images, &test_labels);
-    println!("\nCost: {}\nAccuracy: {}%", cost, 100.0 * correct);
-
-    for (ti, tl) in test_images.iter().zip(&test_labels).take(20) {
-        let prediction = model.predict(&ti);
-        let p_argmax = prediction.argmax();
-        let t_argmax = tl.argmax();
-        println!("{} {}", t_argmax.0, p_argmax.0);
-    }
-
     model.sgd(
         batch_size,
         learning_rate,
         &training_images,
         &training_labels,
+        false,
         &test_images,
         &test_labels,
     );
-
-    let (cost, correct) = model.evaluate(&test_images, &test_labels);
-    println!("\nCost: {}\nAccuracy: {}%", cost, 100.0 * correct);
-
-    for (ti, tl) in test_images.iter().zip(test_labels).take(20) {
-        let prediction = model.predict(&ti);
-        let p_argmax = prediction.argmax();
-        let t_argmax = tl.argmax();
-        println!("{} {}", t_argmax.0, p_argmax.0);
-    }
 }

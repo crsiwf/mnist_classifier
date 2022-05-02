@@ -126,14 +126,17 @@ impl<'a> NeuralNet<'a> {
             let layer_activation = &activations[i];
 
             let g_w = layer_activation * &current.transpose();
+
+            // // Gradient Clipping
             // let clipping_threshold = layer_weights.size() as f32 * 1000.0;
             // let g_w_mag = g_w.fold(0.0, |s, x| s + x * x).sqrt();
             // if g_w_mag > clipping_threshold {
             //     g_w *= clipping_threshold / g_w_mag;
             // }
+
             gradient.push(g_w.transpose());
             let mut tmp = layer_weights.transpose();
-            tmp = tmp.slice_top(tmp.rows() - 1); // remove bias weights
+            tmp = tmp.vslice(tmp.rows() - 1).0; // remove bias weights
             rowwise_mul_mut(&mut tmp, &self.activation.derivative(layer_input));
             current = tmp * &current;
         }
@@ -168,17 +171,17 @@ impl<'a> NeuralNet<'a> {
 
     pub fn evaluate(&self, test_data: &[Matrix2D], test_labels: &[Matrix2D]) -> (f32, f32) {
         let mut total_cost = 0.0;
-        let mut total_correct = 0;
+        let mut total_accuracy = 0;
 
         for (x, y) in test_data.iter().zip(test_labels) {
             let prediction = self.predict(x);
             total_cost += self.loss.loss(&prediction, y);
-            total_correct += (prediction.argmax() == y.argmax()) as usize;
+            total_accuracy += (prediction.argmax() == y.argmax()) as usize;
         }
 
         (
             total_cost / test_data.len() as f32,
-            total_correct as f32 / test_data.len() as f32,
+            total_accuracy as f32 / test_data.len() as f32,
         )
     }
 
@@ -188,17 +191,22 @@ impl<'a> NeuralNet<'a> {
         learning_rate: f32,
         data: &[Matrix2D],
         labels: &[Matrix2D],
+        silent: bool,
         test_data: &[Matrix2D],
         test_labels: &[Matrix2D],
     ) {
+        let n_batches = data.len() / batch_size;
+        if !silent {
+            let (cost, accuracy) = self.evaluate(&test_data, &test_labels);
+            println!("\n(0/{}) Cost: {:.4},    Accuracy: {:.2}%", n_batches, cost, 100.0 * accuracy);
+        }
+
         for left in (0..data.len()).step_by(batch_size) {
-            // println!(
-            //     "Batch {}/{}",
-            //     left / batch_size + 1,
-            //     data.len() / batch_size
-            // );
-            print!("-");
-            std::io::stdout().flush().unwrap();
+            if !silent {
+                print!("-");
+                std::io::stdout().flush().unwrap();
+            }
+
             let right = min(left + batch_size, data.len());
 
             let batch_data = &data[left..right];
@@ -210,16 +218,19 @@ impl<'a> NeuralNet<'a> {
                 *w -= learning_rate * g;
             }
 
-            if left / batch_size % 100 == 99 {
-                let (cost, correct) = self.evaluate(&test_data, &test_labels);
-                println!("\nCost: {:.4},    Accuracy: {:.2}%", cost, 100.0 * correct);
-                // for (ti, tl) in test_data.iter().zip(test_labels).take(20) {
-                //     let prediction = self.predict(&ti);
-                //     let p_argmax = prediction.argmax();
-                //     let t_argmax = tl.argmax();
-                //     println!("{} {}", t_argmax.0, p_argmax.0);
-                // }
-                // println!("{:?}", self.weights);
+            if !silent {
+                let batch = left / batch_size;
+                let n_printed_updates = 10;
+                if batch % (n_batches / n_printed_updates) == (n_batches / n_printed_updates) - 1 {
+                    let (cost, accuracy) = self.evaluate(&test_data, &test_labels);
+                    println!(
+                        "\n({}/{}) Cost: {:.4},    Accuracy: {:.2}%",
+                        batch + 1,
+                        n_batches,
+                        cost,
+                        100.0 * accuracy
+                    );
+                }
             }
         }
     }
